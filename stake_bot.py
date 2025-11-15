@@ -15,10 +15,12 @@ The script can work in two modes:
 2. Environment variables: Uses environment variables (for PM2)
 """
 
-import bittensor as bt
-import time
-import sys
 import os
+import sys
+import time
+
+import bittensor as bt
+
 
 def main():
     print("=" * 70)
