@@ -36,9 +36,11 @@ def main():
         WALLET_NAME = os.getenv('WALLET_NAME', 'default')
         HOTKEY_NAME = os.getenv('HOTKEY_NAME', 'default')
         VALIDATOR_HOTKEY = os.getenv('VALIDATOR_HOTKEY', '')
-        STAKE_AMOUNT = float(os.getenv('STAKE_AMOUNT', '0.001'))
+        STAKE_AMOUNT = float(os.getenv('STAKE_AMOUNT', '0.05'))
         NETUID = int(os.getenv('NETUID', '1'))
         NETWORK = os.getenv('NETWORK', 'test')
+        EPOCHS_TO_STAKE = int(os.getenv('EPOCHS_TO_STAKE', '1'))
+        BLOCKS_TO_WAIT = EPOCHS_TO_STAKE * 360  # 360 blocks per epoch (72 minutes)
         CONTINUOUS = os.getenv('CONTINUOUS', 'false').lower() in ['true', 'yes', '1', 'y']
         WALLET_PASSWORD = os.getenv('WALLET_PASSWORD')
     else:
@@ -46,9 +48,19 @@ def main():
         WALLET_NAME = input("Enter wallet name [default]: ").strip() or "default"
         HOTKEY_NAME = input("Enter hotkey name [default]: ").strip() or "default"
         VALIDATOR_HOTKEY = input("Enter validator hotkey (SS58 address): ").strip()
-        STAKE_AMOUNT = float(input("Enter stake amount in TAO [0.001]: ").strip() or "0.001")
+        STAKE_AMOUNT = float(input("Enter stake amount in TAO [0.05]: ").strip() or "0.05")
         NETUID = int(input("Enter subnet ID [1]: ").strip() or "1")
         NETWORK = input("Enter network (test/finney) [test]: ").strip() or "test"
+        
+        # Ask for stake duration
+        print("\nStake duration options:")
+        print("  1 epoch  = 360 blocks ≈ 72 minutes (minimum for emissions)")
+        print("  2 epochs = 720 blocks ≈ 144 minutes (2.4 hours)")
+        print("  3 epochs = 1080 blocks ≈ 216 minutes (3.6 hours)")
+        duration_input = input("Enter number of epochs to stake [1]: ").strip() or "1"
+        EPOCHS_TO_STAKE = int(duration_input)
+        BLOCKS_TO_WAIT = EPOCHS_TO_STAKE * 360  # 360 blocks per epoch
+        
         CONTINUOUS = input("Run continuously? (y/n) [n]: ").strip().lower() == 'y'
         WALLET_PASSWORD = None
     
@@ -64,6 +76,7 @@ def main():
     print(f"  Validator: {VALIDATOR_HOTKEY}")
     print(f"  Amount: {STAKE_AMOUNT} TAO")
     print(f"  Subnet: {NETUID}")
+    print(f"  Stake Duration: {EPOCHS_TO_STAKE} epoch(s) = {BLOCKS_TO_WAIT} blocks ≈ {BLOCKS_TO_WAIT * 12 / 3600:.1f} hours")
     print(f"  Continuous: {CONTINUOUS}")
     print("=" * 70)
     
@@ -74,13 +87,19 @@ def main():
     
     # Unlock coldkey
     print("\nUnlocking wallet...")
-    if WALLET_PASSWORD:
-        # Use password from environment variable (PM2 mode)
-        wallet.unlock_coldkey(password=WALLET_PASSWORD)
-    else:
-        # Prompt for password (interactive mode)
-        wallet.unlock_coldkey()
-    print("✓ Wallet unlocked")
+    try:
+        if WALLET_PASSWORD:
+            # Try with password from environment variable (PM2 mode)
+            import os as _os
+            _os.environ['BT_WALLET_PASSWORD'] = WALLET_PASSWORD
+            wallet.unlock_coldkey()
+        else:
+            # Prompt for password (interactive mode) or use unencrypted key
+            wallet.unlock_coldkey()
+        print("✓ Wallet unlocked")
+    except Exception as e:
+        # If unlock fails, wallet might already be unencrypted
+        print(f"✓ Wallet loaded (unencrypted or already unlocked)")
     
     # Connect to network
     print(f"\nConnecting to {NETWORK} network...")
@@ -156,12 +175,52 @@ def main():
             
             # Wait for next block
             print(f"\nWaiting for next block...")
+            block_wait_start = time.time()
             while True:
                 new_block = subtensor.get_current_block()
                 if new_block > current_block:
-                    print(f"✓ New block: {new_block}")
+                    block_wait_time = time.time() - block_wait_start
+                    blocks_elapsed = new_block - current_block
+                    print(f"✓ New block: {new_block} (waited {block_wait_time:.1f}s, {blocks_elapsed} blocks)")
+                    if blocks_elapsed > 1:
+                        avg_block_time = block_wait_time / blocks_elapsed
+                        print(f"  Average block time: ~{avg_block_time:.1f}s")
                     break
                 time.sleep(1)
+            
+            # Now wait for the full epoch duration
+            start_block = new_block
+            target_block = start_block + BLOCKS_TO_WAIT
+            print(f"\n💎 Holding stake for {EPOCHS_TO_STAKE} epoch(s) ({BLOCKS_TO_WAIT} blocks)")
+            print(f"Start block: {start_block}")
+            print(f"Target block: {target_block}")
+            print(f"Estimated time: ~{BLOCKS_TO_WAIT * 12 / 3600:.1f} hours")
+            
+            epoch_start_time = time.time()
+            last_update = time.time()
+            
+            while True:
+                current = subtensor.get_current_block()
+                blocks_remaining = target_block - current
+                
+                if current >= target_block:
+                    elapsed_time = time.time() - epoch_start_time
+                    print(f"\n✓ Epoch complete! Held for {elapsed_time / 3600:.2f} hours ({current - start_block} blocks)")
+                    break
+                
+                # Update progress every 60 seconds
+                if time.time() - last_update >= 60:
+                    blocks_done = current - start_block
+                    progress = (blocks_done / BLOCKS_TO_WAIT) * 100
+                    elapsed = time.time() - epoch_start_time
+                    estimated_total = (elapsed / blocks_done) * BLOCKS_TO_WAIT if blocks_done > 0 else 0
+                    remaining_time = estimated_total - elapsed
+                    
+                    print(f"  Progress: {progress:.1f}% ({blocks_done}/{BLOCKS_TO_WAIT} blocks) | "
+                          f"Elapsed: {elapsed/3600:.2f}h | Remaining: ~{remaining_time/3600:.2f}h")
+                    last_update = time.time()
+                
+                time.sleep(10)  # Check every 10 seconds
             
             # Get actual staked amount after staking for the specific subnet
             stake_info_after = subtensor.get_stake_for_coldkey_and_hotkey(

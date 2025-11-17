@@ -24,18 +24,20 @@ module.exports = {
   apps: [{
     name: 'stake-bot',
     script: 'stake_bot.py',
-    interpreter: 'python3',
+    interpreter: '/root/stake/venv/bin/python3',  // Use venv Python
     
     // ⚠️ EDIT THE VALUES BELOW ⚠️
     env: {
       WALLET_NAME: 'droplet',                    // Your wallet name
       HOTKEY_NAME: 'default',                    // Your hotkey name
-      VALIDATOR_HOTKEY: '5E1nK3myeWNWrmffVaH76f2mCFCbe9VcHGwgkfdcD7k3E8D1',                      // ⚠️ REQUIRED: Set validator SS58 address
-      STAKE_AMOUNT: '0.01',                     // Amount to stake (TAO)
-      NETUID: '51',                               // Subnet ID
-      NETWORK: 'finney',                           // 'test' or 'finney'
+      VALIDATOR_HOTKEY: '5D7aRtpmVBKsQRzMA2ioUPL25onJPzBjiFVVt5uPZ3TDsn51',  // ⚠️ REQUIRED: Set validator SS58 address
+      STAKE_AMOUNT: '0.05',                      // Amount to stake (TAO) - min 0.05
+      NETUID: '51',                              // Subnet ID
+      NETWORK: 'finney',                         // 'test' or 'finney'
+      EPOCHS_TO_STAKE: '1',                      // Number of epochs (1 epoch = 360 blocks = 72 min)
       CONTINUOUS: 'true',                        // 'true' for continuous operation
-      WALLET_PASSWORD: 'droplet@123',                       // ⚠️ REQUIRED: Your wallet password
+      WALLET_PASSWORD: '',                       // Leave empty - wallet must be unencrypted for PM2
+      BT_WALLET_PASSWORD: '',                    // Leave empty - wallet must be unencrypted for PM2
       
       // Alternative: Use keyfile instead of password (more secure)
       // Leave WALLET_PASSWORD empty and ensure your keyfile is properly set up

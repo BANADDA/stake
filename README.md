@@ -1,344 +1,341 @@
 # Bittensor Stake Bot
 
-Simple script to automatically stake and unstake TAO on Bittensor subnets, block-by-block.
-
+Simple script to automatically stake and unstake TAO on Bittensor subnets for a full epoch to earn emissions.
 
 ## Quick Start
 
-### Interactive Mode (CLI)
+### 1. Install Dependencies
 
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+# Create virtual environment (recommended)
+python3 -m venv venv
+source venv/bin/activate
 
-# Run the script
+# Install requirements
+pip install -r requirements.txt
+```
+
+### 2. Run the Bot
+
+```bash
 python3 stake_bot.py
 ```
-
-The script will prompt you for configuration.
-
-### PM2 Mode (Background Process)
-
-```bash
-# 1. Install dependencies
-pip install -r requirements.txt
-
-# 2. Install PM2 (if not already installed)
-npm install -g pm2
-
-# 3. IMPORTANT: Edit ecosystem.config.js
-# Open ecosystem.config.js in a text editor and update the env section:
-#   - Set WALLET_NAME (your wallet name)
-#   - Set HOTKEY_NAME (your hotkey name)  
-#   - Set VALIDATOR_HOTKEY (validator SS58 address) - REQUIRED!
-#   - Set STAKE_AMOUNT (amount to stake)
-#   - Set NETUID (subnet ID)
-#   - Set NETWORK ('test' or 'finney')
-#   - Set CONTINUOUS ('true' for continuous operation)
-#   - Set WALLET_PASSWORD (your wallet password) - REQUIRED!
-
-# 4. Start the bot with PM2
-pm2 start ecosystem.config.js
-
-# 5. View logs
-pm2 logs stake-bot
-
-# Stop the bot
-pm2 stop stake-bot
-
-# Restart the bot
-pm2 restart stake-bot
-
-# View status
-pm2 status
-
-# Make PM2 start on system boot (optional)
-pm2 startup
-pm2 save
-```
-
-**IMPORTANT:** You MUST edit `ecosystem.config.js` before starting the bot! At minimum, set:
-- `VALIDATOR_HOTKEY` - Your validator's SS58 address
-- `WALLET_PASSWORD` - Your wallet password
-
-## Configuration
-
-### Interactive Mode
 
 The script will prompt you for:
 - Wallet name
 - Hotkey name
-- Validator hotkey address
-- Stake amount
+- Validator hotkey (SS58 address)
+- Stake amount in TAO (minimum 0.05)
 - Subnet ID
 - Network (test/finney)
+- Stake duration (number of epochs)
 - Continuous mode (y/n)
 - Wallet password (secure prompt)
 
-### PM2 Mode
+### 3. Run in Background (Optional)
 
-**Before starting the bot with PM2, you MUST edit `ecosystem.config.js`:**
+To keep the bot running after closing your terminal:
 
-1. Open `ecosystem.config.js` in your text editor
-2. Find the `env` section (around line 10)
-3. Update these values with your configuration:
+```bash
+# Install screen
+apt install screen -y
 
-```javascript
-env: {
-  WALLET_NAME: 'your-wallet',              // Replace with your wallet name
-  HOTKEY_NAME: 'your-hotkey',              // Replace with your hotkey name
-  VALIDATOR_HOTKEY: '5E2LP...',            // REQUIRED: Replace with validator address
-  STAKE_AMOUNT: '0.001',                   // Amount to stake (test with 0.001)
-  NETUID: '1',                             // Subnet ID
-  NETWORK: 'test',                         // 'test' or 'finney' for mainnet
-  CONTINUOUS: 'true',                      // 'true' for continuous operation
-  WALLET_PASSWORD: 'your-password',        // REQUIRED: Your wallet password
-}
+# Start a screen session
+cd /root/stake
+source venv/bin/activate
+screen -S stake-bot
+
+# Run the bot (it will prompt for password)
+python3 stake_bot.py
+
+# Enter your configuration and password
+# Once it starts running, press Ctrl+A then D to detach
+
+# To check on it later:
+screen -r stake-bot
+
+# To list all sessions:
+screen -ls
 ```
 
-4. Save the file
-5. Then run: `pm2 start ecosystem.config.js`
+**Benefits of using screen:**
+- Bot keeps running even after you disconnect/close terminal
+- Easy to reattach and check status anytime
+- Simple to stop (Ctrl+C when attached)
+- No configuration files needed
 
-**Required Fields:**
-- `VALIDATOR_HOTKEY` - Must be a valid SS58 address
-- `WALLET_PASSWORD` - Your wallet password (or leave empty and use keyfile)
+## How It Works
 
-**Security Note:** For production, consider using:
-- Encrypted keyfiles instead of plaintext passwords
-- Environment variables set at system level
-- PM2 secrets management
+The bot performs strategic staking to earn emissions:
+
+### Epoch-Based Staking
+
+1. **Stakes** TAO to validator on specified subnet
+2. **Holds** for full epoch duration (360 blocks ≈ 72 minutes)
+3. **Shows progress** updates every minute
+4. **Unstakes** after epoch completes
+5. **Repeats** if continuous mode is enabled
+
+### Why Hold for an Epoch?
+
+Bittensor distributes **TAO rewards** at the end of each epoch. To earn emissions:
+- **Minimum**: Hold stake for 1 full epoch (360 blocks)
+- **Epoch duration**: ~72 minutes
+- **Daily epochs**: ~20 per day
+- **Rewards**: Distributed to stakers who held through the entire epoch
+
+Staking for just one block doesn't earn rewards!
+
+### Epoch Timeline
+
+```
+Block N:       Stake 0.05 TAO
+  ↓
+Wait ~72 minutes (360 blocks) - Progress updates every minute
+  ↓
+Block N+360:   Epoch complete - Emissions earned!
+  ↓
+               Unstake 0.05 TAO
+  ↓
+60 seconds wait
+  ↓
+Repeat... (if continuous mode)
+```
+
+## Configuration Options
+
+### Stake Amount
+- **Minimum**: 0.05 TAO
+- **Recommended**: Start with 0.05-0.1 TAO for testing
+- **Note**: Include 5% buffer for transaction fees
+
+### Stake Duration
+- **1 epoch**: 360 blocks ≈ 72 minutes (minimum for emissions)
+- **2 epochs**: 720 blocks ≈ 144 minutes
+- **3 epochs**: 1080 blocks ≈ 216 minutes
+- **More epochs**: Better rewards accumulation
+
+### Network Selection
+- **test**: For testing (recommended first)
+- **finney**: Mainnet (real TAO and rewards)
+
+### Continuous Mode
+- **Yes**: Keeps staking/unstaking in cycles
+- **No**: Runs one cycle then stops
+
+## Finding Validators
+
+Find active validators at:
+- **TaoStats**: https://taostats.io/
+- **Bittensor Explorer**: https://x.taostats.io/
+
+**Important**: Make sure the validator is active on your chosen subnet!
 
 ## Requirements
 
 - Python 3.8+
 - Bittensor SDK
 - Configured Bittensor wallet with TAO balance
-- PM2 (optional, for background process)
+- Sufficient TAO for:
+  - Stake amount
+  - Transaction fees (≈5% of stake amount)
 
-## Project Structure
-
-```
-stake/
-├── stake_bot.py          # Main bot script
-├── ecosystem.config.js   # PM2 configuration
-├── requirements.txt      # Python dependencies
-├── logs/                 # PM2 logs directory (auto-created)
-└── README.md
-```
-
-## How It Works
-
-The bot automatically:
-
-1. **Connects** to Bittensor network
-2. **Unlocks** your wallet (prompts for password)
-3. **Stakes** TAO to validator on specified subnet
-4. **Waits** for next block (~12 seconds)
-5. **Unstakes** TAO from validator
-6. **Repeats** if continuous mode is enabled
-
-### Block-by-Block Operation
-
-```
-Block N:     Stake 0.001 TAO
-  ↓
-~12 seconds (wait for next block)
-  ↓
-Block N+1:   Unstake 0.001 TAO
-  ↓
-60 seconds (if continuous)
-  ↓
-Repeat...
-```
-
-## Example Usage
-
-### Single Cycle (Test)
-
-**Interactive Mode:**
-```bash
-python3 stake_bot.py
-
-# Prompts:
-Enter wallet name: my-wallet
-Enter hotkey name: my-hotkey
-Enter validator hotkey: 5E2LP6EnZ54m3wS8s1yPvD5c3xo71kQroBw7aUVK32TKeZ5u
-Enter stake amount in TAO: 0.001
-Enter subnet ID: 1
-Enter network: test
-Run continuously? (y/n): n
-Enter your password: ********
-```
-
-**PM2 Mode:**
-```bash
-# 1. Edit ecosystem.config.js
-#    - Set your wallet name, hotkey, validator address
-#    - Set CONTINUOUS: 'false' for single cycle
-#    - Set WALLET_PASSWORD
-# 2. Start with PM2
-pm2 start ecosystem.config.js
-pm2 logs stake-bot
-```
-
-### Continuous Mode (Production)
-
-**Interactive Mode:**
-```bash
-python3 stake_bot.py
-
-# When prompted, enter 'y' for continuous mode
-# The bot will run forever until you press Ctrl+C
-```
-
-**PM2 Mode (Recommended for 24/7 operation):**
-```bash
-# 1. Edit ecosystem.config.js
-#    - Set your wallet name, hotkey, validator address
-#    - Set CONTINUOUS: 'true' for continuous operation
-#    - Set WALLET_PASSWORD
-# 2. Start with PM2
-pm2 start ecosystem.config.js
-
-# Bot runs in background
-# Auto-restarts on failure
-# Logs to ./logs/ directory
-```
-
-## Finding Validators
-
-Find active validators at:
-- **TaoStats:** https://taostats.io/
-- **Bittensor Explorer:** https://x.taostats.io/
-
-Make sure the validator is active on your chosen subnet!
-
-## Important Notes
-
-### Minimum Stake Amounts
-
-- **Test network:** 0.001 TAO minimum
-- **Finney (mainnet):** Usually 1 TAO minimum (varies by subnet)
-
-If you get `AmountTooLow` error, increase the stake amount.
-
-### Network Selection
-
-- **test:** For testing (recommended first)
-- **finney:** Mainnet (real TAO)
-
-### Balance Requirements
-
-Make sure you have enough TAO:
-- For staking amount
-- Plus transaction fees
-
-Check balance:
-```bash
-btcli wallet balance --wallet.name [YOUR_WALLET]
-```
-
-## Stopping the Bot
-
-**Interactive Mode:**
-Press `Ctrl+C` to stop the bot gracefully.
-
-**PM2 Mode:**
-```bash
-pm2 stop stake-bot     # Stop the bot
-pm2 delete stake-bot   # Stop and remove from PM2
-```
-
-## Monitoring (PM2)
-
-```bash
-# View real-time logs
-pm2 logs stake-bot
-
-# View status
-pm2 status
-
-# Monitor resources
-pm2 monit
-
-# View specific log file
-tail -f logs/stake-bot-out.log
-```
-
-## Security
-
-### Interactive Mode
-- Password entered interactively (not stored)
-- Runs in foreground (you see everything)
-- Easy to stop with Ctrl+C
-
-### PM2 Mode
-- WARNING: Password stored in config or environment variable
-- Runs as background process
-- Auto-restart on failure
-- Logs all activity
-
-**Best Practices:**
-- Always test on test network first
-- Use small amounts for testing
-- Verify validator addresses
-- Never share your password
-- For PM2: Use encrypted keyfiles or system-level environment variables
-- Keep logs secure (contains transaction info)
-- Use PM2 startup to ensure bot restarts after reboot
-
-## Troubleshooting
-
-### "Wrong password"
-Make sure you're entering the correct wallet password. Test it first:
-```bash
-btcli wallet overview --wallet.name [YOUR_WALLET]
-```
-
-### "Insufficient balance"
 Check your balance:
 ```bash
 btcli wallet balance --wallet.name [YOUR_WALLET]
 ```
 
-### "AmountTooLow"
-Increase the stake amount. Finney mainnet typically requires 1 TAO minimum.
+## Example Session
+
+```bash
+$ python3 stake_bot.py
+
+======================================================================
+Bittensor Simple Stake Bot
+======================================================================
+
+Running in INTERACTIVE MODE
+Enter wallet name [default]: droplet
+Enter hotkey name [default]: 
+Enter validator hotkey (SS58 address): 5D7aRtpmVBKsQRzMA2ioUPL25onJPzBjiFVVt5uPZ3TDsn51
+Enter stake amount in TAO [0.05]: 0.05
+Enter subnet ID [1]: 51
+Enter network (test/finney) [test]: finney
+
+Stake duration options:
+  1 epoch  = 360 blocks ≈ 72 minutes (minimum for emissions)
+  2 epochs = 720 blocks ≈ 144 minutes (2.4 hours)
+  3 epochs = 1080 blocks ≈ 216 minutes (3.6 hours)
+Enter number of epochs to stake [1]: 1
+Run continuously? (y/n) [n]: y
+
+======================================================================
+Configuration:
+  Wallet: droplet
+  Hotkey: default
+  Network: finney
+  Validator: 5D7aRtpmVBKsQRzMA2ioUPL25onJPzBjiFVVt5uPZ3TDsn51
+  Amount: 0.05 TAO
+  Subnet: 51
+  Stake Duration: 1 epoch(s) = 360 blocks ≈ 1.2 hours
+  Continuous: True
+======================================================================
+
+Initializing wallet...
+✓ Wallet initialized
+
+Unlocking wallet...
+Enter your password: ********
+✓ Wallet unlocked
+
+Connecting to finney network...
+✓ Connected to finney
+
+Current balance: 0.234600549 TAO
+
+======================================================================
+Cycle 1
+======================================================================
+Current balance: 0.234600549 TAO
+Current block: 6899884
+Current stake on subnet 51: ‎0.000000000ת‎
+
+Staking 0.05 TAO to subnet 51...
+✓ Successfully staked 0.05 TAO
+
+Waiting for next block...
+✓ New block: 6899887 (waited 36.2s, 3 blocks)
+  Average block time: ~12.1s
+Actual staked amount: ‎0.769656036ת‎
+
+💎 Holding stake for 1 epoch(s) (360 blocks)
+Start block: 6899887
+Target block: 6900247
+Estimated time: ~1.2 hours
+
+  Progress: 10.0% (36/360 blocks) | Elapsed: 0.12h | Remaining: ~1.08h
+  Progress: 20.0% (72/360 blocks) | Elapsed: 0.24h | Remaining: ~0.96h
+  ...
+  Progress: 100.0% (360/360 blocks) | Elapsed: 1.20h | Remaining: ~0.00h
+
+✓ Epoch complete! Held for 1.20 hours (360 blocks)
+
+Unstaking ‎0.769656036ת‎ from subnet 51...
+✓ Successfully unstaked ‎0.769656036ת‎
+
+✓ Cycle 1 completed successfully
+
+Waiting 60 seconds before next cycle...
+```
+
+## Managing Background Sessions
+
+### Start in Background
+```bash
+screen -S stake-bot
+python3 stake_bot.py
+# Enter configuration and password
+# Press Ctrl+A then D to detach
+```
+
+### Check on Running Bot
+```bash
+screen -r stake-bot
+# Press Ctrl+A then D to detach again
+```
+
+### Stop the Bot
+```bash
+screen -r stake-bot
+# Press Ctrl+C to stop
+# Type 'exit' to close the screen session
+```
+
+### List All Sessions
+```bash
+screen -ls
+```
+
+## Troubleshooting
+
+### "Wrong password"
+Test your password first:
+```bash
+btcli wallet overview --wallet.name [YOUR_WALLET]
+```
+
+### "Insufficient balance"
+You need enough TAO for stake amount + fees (≈5% extra).
+Check balance:
+```bash
+btcli wallet balance --wallet.name [YOUR_WALLET]
+```
 
 ### "Failed to stake/unstake"
-- Check validator is active on the subnet
-- Verify you have enough balance
-- Make sure network is accessible
+- Verify validator is active on the subnet
+- Check you have enough balance
+- Ensure network is accessible
 
-### PM2: Bot keeps restarting
-Check logs for errors:
-```bash
-pm2 logs stake-bot --err
-```
-Common issues:
-- Wrong password in config
-- Invalid validator hotkey
-- Insufficient balance
+### Bot keeps restarting itself
+- Check that validator hotkey is correct
+- Verify you have sufficient balance
+- Make sure you're not running multiple instances
 
-### PM2: Bot not starting
-```bash
-# Check PM2 logs
-pm2 logs stake-bot
+### "Currency mismatch" warnings
+This is normal - the bot handles Alpha currency conversion automatically.
 
-# Try running interactively first to test
-python3 stake_bot.py
+## Important Notes
 
-# Check PM2 status
-pm2 status
-```
+### Block Time
+- Bittensor produces blocks every **~12 seconds**
+- Epochs last **360 blocks** = **~72 minutes**
+- Slight variations in block time are normal
 
-## What is Block Time?
+### Transaction Fees
+- Each stake/unstake costs a small fee
+- Bot checks balance before each cycle
+- Requires 5% buffer above stake amount
 
-Bittensor produces a new block approximately every **12 seconds**. The script:
-- Stakes in block N
-- Waits ~12 seconds for block N+1
-- Unstakes in block N+1
+### Emissions
+- Only earned by holding stake for full epochs
+- Distributed at end of each epoch
+- ~20 epochs per day = 20 reward opportunities
 
-This ensures transactions are confirmed in separate blocks.
+### Security
+- Password entered interactively (not stored in files)
+- Wallet remains encrypted on disk
+- Only unlock happens in memory during runtime
+- Use screen to run in background safely
+
+## What Gets Logged
+
+The bot shows:
+- Current block numbers
+- Stake/unstake confirmations
+- Progress through epochs
+- Balance updates
+- Any errors or warnings
+- Block timing statistics
+
+## Best Practices
+
+1. **Start with test network** - Verify everything works
+2. **Use small amounts** - Test with 0.05-0.1 TAO first
+3. **Verify validators** - Check they're active on your subnet
+4. **Monitor first epoch** - Watch the full cycle complete
+5. **Use screen** - Keep it running in background
+6. **Check balance** - Ensure you have enough TAO + fees
+
+## Block Time Reference
+
+| Blocks | Time | Description |
+|--------|------|-------------|
+| 1 | 12 seconds | One block |
+| 5 | 1 minute | |
+| 300 | 1 hour | |
+| 360 | 72 minutes | **1 epoch** (minimum for rewards) |
+| 720 | 2.4 hours | 2 epochs |
+| 7200 | 1 day | 20 epochs |
 
 ## License
 
@@ -346,8 +343,8 @@ MIT License
 
 ## Disclaimer
 
-This software is provided "as is" without warranty. Staking involves financial risk. Always test on test network first. Use at your own risk.
+This software is provided "as is" without warranty. Staking involves financial risk. Always test on test network first. You may lose funds due to transaction fees or network issues. Use at your own risk.
 
 ---
 
-**Simple, straightforward, and it works!**
+**Simple staking for earning Bittensor emissions!**
