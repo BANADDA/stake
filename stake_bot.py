@@ -106,9 +106,35 @@ def main():
             print(f"Cycle {cycle}")
             print("=" * 70)
             
+            # Check balance before each cycle
+            balance = subtensor.get_balance(wallet.coldkey.ss58_address)
+            print(f"Current balance: {balance.tao} TAO")
+            
+            # Check if we have enough balance (with some buffer for fees)
+            required_balance = STAKE_AMOUNT * 1.05  # 5% buffer for fees
+            if balance.tao < required_balance:
+                print(f"✗ Insufficient balance: {balance.tao} TAO < {required_balance} TAO (needed with fee buffer)")
+                print(f"Transaction fees have reduced balance below threshold")
+                break
+            
             # Get current block
             current_block = subtensor.get_current_block()
             print(f"Current block: {current_block}")
+            
+            # Get stake before staking for the specific subnet
+            stake_info_before = subtensor.get_stake_for_coldkey_and_hotkey(
+                coldkey_ss58=wallet.coldkeypub.ss58_address,
+                hotkey_ss58=VALIDATOR_HOTKEY
+            )
+            stake_before = stake_info_before.get(NETUID, None)
+            if stake_before:
+                print(f"Current stake on subnet {NETUID}: {stake_before.stake}")
+            else:
+                print(f"No existing stake on subnet {NETUID}")
+                stake_before_amount = bt.Balance.from_rao(0)
+            
+            if stake_before:
+                stake_before_amount = stake_before.stake
             
             # Stake
             print(f"\nStaking {STAKE_AMOUNT} TAO to subnet {NETUID}...")
@@ -137,17 +163,32 @@ def main():
                     break
                 time.sleep(1)
             
-            # Unstake
-            print(f"\nUnstaking {STAKE_AMOUNT} TAO from subnet {NETUID}...")
+            # Get actual staked amount after staking for the specific subnet
+            stake_info_after = subtensor.get_stake_for_coldkey_and_hotkey(
+                coldkey_ss58=wallet.coldkeypub.ss58_address,
+                hotkey_ss58=VALIDATOR_HOTKEY
+            )
+            stake_after = stake_info_after.get(NETUID, None)
+            if stake_after:
+                stake_after_amount = stake_after.stake
+                actual_staked = bt.Balance.from_rao(stake_after_amount.rao - stake_before_amount.rao)
+                actual_staked = actual_staked.set_unit(NETUID)
+                print(f"Actual staked amount: {actual_staked}")
+            else:
+                print("✗ Error: Could not get stake info after staking")
+                break
+            
+            # Unstake the exact amount that was staked
+            print(f"\nUnstaking {actual_staked} from subnet {NETUID}...")
             try:
                 success = subtensor.unstake(
                     wallet=wallet,
                     hotkey_ss58=VALIDATOR_HOTKEY,
-                    amount=amount,
+                    amount=actual_staked,
                     netuid=NETUID
                 )
                 if success:
-                    print(f"✓ Successfully unstaked {STAKE_AMOUNT} TAO")
+                    print(f"✓ Successfully unstaked {actual_staked}")
                 else:
                     print("✗ Failed to unstake")
                     break
@@ -162,9 +203,10 @@ def main():
                 print("\nSingle cycle mode - stopping")
                 break
             
-            # Wait before next cycle
-            print("\nWaiting 60 seconds before next cycle...")
-            time.sleep(60)
+            # Wait before next cycle (allows balance to update and avoids spam)
+            wait_time = 60
+            print(f"\nWaiting {wait_time} seconds before next cycle (allows balance to update)...")
+            time.sleep(wait_time)
             cycle += 1
             
     except KeyboardInterrupt:

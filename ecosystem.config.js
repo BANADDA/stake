@@ -28,14 +28,14 @@ module.exports = {
     
     // ⚠️ EDIT THE VALUES BELOW ⚠️
     env: {
-      WALLET_NAME: 'default',                    // Your wallet name
+      WALLET_NAME: 'droplet',                    // Your wallet name
       HOTKEY_NAME: 'default',                    // Your hotkey name
-      VALIDATOR_HOTKEY: '',                      // ⚠️ REQUIRED: Set validator SS58 address
-      STAKE_AMOUNT: '0.001',                     // Amount to stake (TAO)
-      NETUID: '1',                               // Subnet ID
-      NETWORK: 'test',                           // 'test' or 'finney'
+      VALIDATOR_HOTKEY: '5E1nK3myeWNWrmffVaH76f2mCFCbe9VcHGwgkfdcD7k3E8D1',                      // ⚠️ REQUIRED: Set validator SS58 address
+      STAKE_AMOUNT: '0.01',                     // Amount to stake (TAO)
+      NETUID: '51',                               // Subnet ID
+      NETWORK: 'finney',                           // 'test' or 'finney'
       CONTINUOUS: 'true',                        // 'true' for continuous operation
-      WALLET_PASSWORD: '',                       // ⚠️ REQUIRED: Your wallet password
+      WALLET_PASSWORD: 'droplet@123',                       // ⚠️ REQUIRED: Your wallet password
       
       // Alternative: Use keyfile instead of password (more secure)
       // Leave WALLET_PASSWORD empty and ensure your keyfile is properly set up
